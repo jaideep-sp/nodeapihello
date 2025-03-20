@@ -1,5 +1,4 @@
-
-
+name: Deploy Node.js to EC2
 
 on:
   push:
@@ -21,6 +20,7 @@ jobs:
         
     - name: Install dependencies
       run: npm ci
+        
       
     - name: Build
       run: npm run build --if-present
@@ -79,7 +79,7 @@ jobs:
           if [ -d ".git" ]; then
             git pull
           else
-            git clone ${{ github.repository }} .
+            git clone https://github.com/${{ github.repository }}.git .
           fi
           
           # Install dependencies and build
