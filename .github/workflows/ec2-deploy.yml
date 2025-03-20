@@ -20,6 +20,9 @@ jobs:
         
     - name: Install dependencies
       run: npm ci
+        
+    - name: Run tests
+      run: npm test
       
     - name: Build
       run: npm run build --if-present
@@ -38,8 +41,52 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
+          # Install dependencies if they don't exist
+          if ! command -v git &> /dev/null; then
+            echo "Installing Git..."
+            if [ -f /etc/redhat-release ] || [ -f /etc/amazon-release ]; then
+              # Amazon Linux, RHEL, CentOS
+              sudo yum update -y
+              sudo yum install git -y
+            else
+              # Ubuntu, Debian
+              sudo apt update -y
+              sudo apt install git -y
+            fi
+          fi
+          
+          if ! command -v node &> /dev/null; then
+            echo "Installing Node.js 20.x..."
+            if [ -f /etc/redhat-release ] || [ -f /etc/amazon-release ]; then
+              # Amazon Linux, RHEL, CentOS
+              curl -sL https://rpm.nodesource.com/setup_20.x | sudo bash -
+              sudo yum install -y nodejs
+            else
+              # Ubuntu, Debian
+              curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt install -y nodejs
+            fi
+          fi
+          
+          # Print versions for verification
+          git --version
+          node --version
+          npm --version
+          
+          # Ensure deployment directory exists
+          mkdir -p /home/
           cd /home/
-          git pull
+          
+          # Clone or pull repository
+          if [ -d ".git" ]; then
+            git pull
+          else
+            git clone ${{ github.repository }} .
+          fi
+          
+          # Install dependencies and build
           npm ci
           npm run build --if-present
+          
+          # Start or restart the application
           npm run start
