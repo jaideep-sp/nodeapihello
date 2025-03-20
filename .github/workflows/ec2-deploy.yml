@@ -66,25 +66,68 @@ jobs:
             fi
           fi
           
+          # Install PM2 globally if not already installed
+          if ! command -v pm2 &> /dev/null; then
+            echo "Installing PM2 globally..."
+            npm install -g pm2
+          fi
+          
           # Print versions for verification
           git --version
           node --version
           npm --version
+          pm2 --version
           
           # Ensure deployment directory exists
           mkdir -p /home/ec2-user/nodeapihello
           cd /home/ec2-user/nodeapihello
           
-          # Clone or pull repository
+          # Check if .git directory exists to determine if it's a git repository
           if [ -d ".git" ]; then
-            git pull
+            # It's a git repo, try to update it
+            echo "Repository exists, updating..."
+            git fetch origin
+            git reset --hard origin/main
           else
+            # If directory is not empty but not a git repo, clean it up
+            if [ "$(ls -A .)" ]; then
+              echo "Directory not empty. Clearing directory..."
+              rm -rf ./* ./.[!.]*
+            fi
+            # Clone the repository
+            echo "Cloning fresh repository..."
             git clone https://github.com/${{ github.repository }}.git .
           fi
           
-          # Install dependencies and build
-          npm ci
+          # Install dependencies - using npm install instead of npm ci for projects without package-lock.json
+          if [ -f "package-lock.json" ]; then
+            echo "Found package-lock.json, using npm ci..."
+            npm ci
+          else
+            echo "No package-lock.json found, using npm install..."
+            npm install
+          fi
+          
+          # Build if a build script exists
           npm run build --if-present
           
-          # Start or restart the application
-          npm run start
+          # Stop any existing PM2 process with the same name
+          echo "Checking for existing PM2 processes for node-app..."
+          pm2 delete node-app || echo "No existing process to delete"
+          
+          # Wait a moment to ensure port is released
+          sleep 3
+          
+          # Start the application with PM2
+          echo "Starting application with PM2..."
+          
+          pm2 start npm --name "node-app" -- run start
+          
+          
+          # Save PM2 process list to resurrect processes after reboot
+          pm2 save
+          
+          # Ensure PM2 starts on system boot
+          pm2 startup | tail -n 1 | bash || echo "PM2 startup configuration already exists"
+          
+          echo "Deployment completed successfully"
