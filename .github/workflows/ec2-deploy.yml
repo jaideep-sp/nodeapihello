@@ -1,3 +1,4 @@
+
 name: Deploy Node.js to EC2
 
 on:
@@ -38,30 +39,53 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
+          # Enhanced OS detection
+          if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            OS_TYPE=$ID
+          elif [ -f /etc/redhat-release ]; then
+            OS_TYPE="rhel"
+          elif [ -f /etc/amazon-release ]; then
+            OS_TYPE="amzn"
+          else
+            echo "Unable to detect OS, assuming Amazon Linux"
+            OS_TYPE="amzn"
+          fi
+          
+          echo "Detected OS: $OS_TYPE"
+          
           # Install dependencies if they don't exist
           if ! command -v git &> /dev/null; then
             echo "Installing Git..."
-            if [ -f /etc/redhat-release ] || [ -f /etc/amazon-release ]; then
+            if [[ "$OS_TYPE" == "amzn" || "$OS_TYPE" == "rhel" || "$OS_TYPE" == "centos" ]]; then
               # Amazon Linux, RHEL, CentOS
               sudo yum update -y
               sudo yum install git -y
-            else
+            elif [[ "$OS_TYPE" == "ubuntu" || "$OS_TYPE" == "debian" ]]; then
               # Ubuntu, Debian
               sudo apt update -y
               sudo apt install git -y
+            else
+              echo "Unrecognized OS. Trying yum..."
+              sudo yum update -y
+              sudo yum install git -y || (echo "yum failed, trying apt..." && sudo apt update -y && sudo apt install git -y)
             fi
           fi
           
           if ! command -v node &> /dev/null; then
             echo "Installing Node.js 20.x..."
-            if [ -f /etc/redhat-release ] || [ -f /etc/amazon-release ]; then
+            if [[ "$OS_TYPE" == "amzn" || "$OS_TYPE" == "rhel" || "$OS_TYPE" == "centos" ]]; then
               # Amazon Linux, RHEL, CentOS
-              curl -sL https://rpm.nodesource.com/setup_20.x | sudo bash -
+              curl -sL https://rpm.nodesource.com/setup_20.x.x | sudo bash -
               sudo yum install -y nodejs
-            else
+            elif [[ "$OS_TYPE" == "ubuntu" || "$OS_TYPE" == "debian" ]]; then
               # Ubuntu, Debian
-              curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              curl -sL https://deb.nodesource.com/setup_20.x.x | sudo -E bash -
               sudo apt install -y nodejs
+            else
+              echo "Unrecognized OS. Trying yum for Node.js installation..."
+              curl -sL https://rpm.nodesource.com/setup_20.x.x | sudo bash -
+              sudo yum install -y nodejs || (echo "yum failed, trying apt..." && curl -sL https://deb.nodesource.com/setup_20.x.x | sudo -E bash - && sudo apt install -y nodejs)
             fi
           fi
           
