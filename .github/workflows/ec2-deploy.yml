@@ -66,17 +66,22 @@ jobs:
             fi
           fi
           
-          # Install PM2 globally if not already installed
-          if ! command -v pm2 &> /dev/null; then
-            echo "Installing PM2 globally..."
-            sudo npm install -g pm2
+          # Ensure lsof is installed for port checking
+          if ! command -v lsof &> /dev/null; then
+            echo "Installing lsof for port checking..."
+            if [ -f /etc/redhat-release ] || [ -f /etc/amazon-release ]; then
+              # Amazon Linux, RHEL, CentOS
+              sudo yum install -y lsof
+            else
+              # Ubuntu, Debian
+              sudo apt install -y lsof
+            fi
           fi
           
           # Print versions for verification
           git --version
           node --version
           npm --version
-          pm2 --version
           
           # Ensure deployment directory exists
           mkdir -p /home/ec2-user/nodeapihello
@@ -111,23 +116,27 @@ jobs:
           # Build if a build script exists
           npm run build --if-present
           
-          # Stop any existing PM2 process with the same name
-          echo "Checking for existing PM2 processes for node-app..."
-          pm2 describe node-app > /dev/null && pm2 delete node-app || echo "No existing process to delete"
+          # Kill any process running on port 3000
+          echo "Checking for processes using port 3000..."
+          PORT_PIDS=$(lsof -t -i:3000)
+          if [ ! -z "$PORT_PIDS" ]; then
+            echo "Found processes using port 3000: $PORT_PIDS"
+            echo "Killing processes..."
+            for PID in $PORT_PIDS; do
+              kill -9 $PID
+              echo "Killed process $PID"
+            done
+          else
+            echo "No processes found using port 3000"
+          fi
           
           # Wait a moment to ensure port is released
-          sleep 3
+          sleep 2
           
-          # Start the application with PM2
-          echo "Starting application with PM2..."
+          # Start the application
+          echo "Starting application with npm start..."
+          nohup npm start > app.log 2>&1 &
           
-          pm2 start npm --name "node-app" -- run start
-          
-          
-          # Save PM2 process list to resurrect processes after reboot
-          pm2 save
-          
-          # Setup PM2 to start on system boot (using sudo when necessary)
-          pm2 startup | grep -v "You have to run this command as root" | sudo bash || echo "PM2 startup already configured"
-          
+          # Print status message
+          echo "Application started. Check app.log for output."
           echo "Deployment completed successfully"
