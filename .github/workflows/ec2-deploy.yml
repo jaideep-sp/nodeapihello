@@ -72,8 +72,8 @@ jobs:
           npm --version
           
           # Ensure deployment directory exists
-          mkdir -p /home/
-          cd /home/
+          mkdir -p /home/ec2-user/nodeapihello
+          cd /home/ec2-user/nodeapihello
           
           # Clone or pull repository
           if [ -d ".git" ]; then
