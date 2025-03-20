@@ -69,7 +69,7 @@ jobs:
           # Install PM2 globally if not already installed
           if ! command -v pm2 &> /dev/null; then
             echo "Installing PM2 globally..."
-            npm install -g pm2
+            sudo npm install -g pm2
           fi
           
           # Print versions for verification
@@ -113,7 +113,7 @@ jobs:
           
           # Stop any existing PM2 process with the same name
           echo "Checking for existing PM2 processes for node-app..."
-          pm2 delete node-app || echo "No existing process to delete"
+          pm2 describe node-app > /dev/null && pm2 delete node-app || echo "No existing process to delete"
           
           # Wait a moment to ensure port is released
           sleep 3
@@ -127,7 +127,7 @@ jobs:
           # Save PM2 process list to resurrect processes after reboot
           pm2 save
           
-          # Ensure PM2 starts on system boot
-          pm2 startup | tail -n 1 | bash || echo "PM2 startup configuration already exists"
+          # Setup PM2 to start on system boot (using sudo when necessary)
+          pm2 startup | grep -v "You have to run this command as root" | sudo bash || echo "PM2 startup already configured"
           
           echo "Deployment completed successfully"
